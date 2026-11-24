@@ -1,6 +1,6 @@
 # AI subscription switcher — proposed design
 
-Status: awaiting user review. This document does not authorize implementation.
+Status: user requested implementation planning against this design on 2026-11-18. Implementation has not started; implementation choices below remain identified as proposals.
 
 ## Intent
 
