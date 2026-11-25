@@ -33,3 +33,17 @@ source_model = "gpt-6.2-sol"
 destination_provider = "claude"
 target_model = "sonnet-5-5-1m"
 effort = "high"
+
+[[mappings]]
+source_provider = "claude"
+source_model = "opus-5-5-1m"
+destination_provider = "codex"
+target_model = "gpt-6.2-sol"
+effort = "high"
+
+[[mappings]]
+source_provider = "claude"
+source_model = "sonnet-5-1m"
+destination_provider = "codex"
+target_model = "gpt-6.2-sol"
+effort = "high"

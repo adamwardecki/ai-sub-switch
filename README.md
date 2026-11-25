@@ -1,0 +1,57 @@
+# AI subscription switcher
+
+The recovery runner watches a selected local Conductor chat for a Claude
+subscription limit. It saves a pending turn while macOS is locked, then checks
+that the turn is still blocked before selecting an account and model. It
+preserves the source chat and uses Conductor's transcript attachment to prepare
+a continuation. A send with an uncertain result stays in the queue for inspection
+so a restart cannot send it again.
+
+## Observe a chat
+
+Use Python 3.12+, uv, and two Claude accounts enrolled in `cswap`. Edit
+[the example configuration](examples/config.toml) with your account aliases
+and fallback order. Use a Conductor chat UUID from its copied link.
+
+```sh
+uv run --locked --extra macos aisub --cswap /absolute/path/to/cswap doctor
+uv run --locked --extra macos aisub --config examples/config.toml \
+  --cswap /absolute/path/to/cswap run --session CHAT_UUID --include-current
+```
+
+Omit `--include-current` to ignore quota failures that predate enrollment. The
+first invocation for a chat establishes its observation baseline. Add `--once`
+to perform a single check. State lives in
+`~/Library/Application Support/ai-sub-switch/state.sqlite3` by default.
+
+Run `uv run --locked aisub status` to inspect the queue. Use `pause` and
+`resume` to control a live runner. A row stuck in `preparing` or `submitting`
+requires checking the destination chat before trying to continue manually.
+
+## Live verification
+
+Read-only recovery was checked with Conductor 0.100.0. Native handoff controls
+were explored with assisted computer use on 0.96.0. The Python Accessibility
+runner and a real unlock-to-send cycle still need live validation. The
+`--live` path currently requires 0.96.0, Accessibility permission and
+Conductor in the foreground. The app will wait while the screen is locked
+or another application is in front. Keep the runner in observation mode
+until a disposable chat can be used for live verification.
+
+`launch-agent --session CHAT_UUID` prints a per-user launchd plist. It
+defaults to observation mode. The plist reflects the current executable and
+paths, so generate it from a stable installation before loading it.
+
+The runner currently recognizes Claude quota events. It can check Codex
+subscription capacity for a fallback, but does not classify Codex quota
+failures as recovery triggers. An unsupported model label or changed UI
+control stops recovery for inspection.
+
+## Development
+
+```sh
+uv run --locked pytest -q
+uv run --locked ruff check src tests
+uv run --locked ruff format --check src tests
+uv build
+```

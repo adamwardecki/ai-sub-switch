@@ -3,6 +3,16 @@ name = "ai-sub-switch"
 version = "0.1.0"
 requires-python = ">=3.12"
 
+[project.optional-dependencies]
+macos = [
+  "pyobjc-framework-Cocoa==13.0; sys_platform == 'darwin'",
+  "pyobjc-framework-Quartz==13.0; sys_platform == 'darwin'",
+  "pyobjc-framework-ApplicationServices==13.0; sys_platform == 'darwin'",
+]
+
+[project.scripts]
+aisub = "ai_sub_switch.cli:main"
+
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.11"]
 
@@ -14,4 +24,4 @@ build-backend = "hatchling.build"
 packages = ["src/ai_sub_switch"]
 
 [tool.hatch.build.targets.sdist]
-include = ["/src", "/tests", "/examples", "/pyproject.toml", "/uv.lock"]
+include = ["/src", "/tests", "/examples", "/pyproject.toml", "/uv.lock", "/README.md"]
