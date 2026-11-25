@@ -12,7 +12,7 @@ from pathlib import Path
 from time import sleep
 from uuid import UUID
 
-from .config import ConfigError, load_config
+from .config import ConfigError, init_config, load_config
 from .coordinator import UnlockCycle, reconcile, tick
 from .desktop import Desktop, Handoff
 from .providers import Codex, Cswap
@@ -32,6 +32,7 @@ def parser():
     root.add_argument("--cswap", default=shutil.which("cswap"))
     root.add_argument("--codex", default=str(DEFAULT_CODEX))
     actions = root.add_subparsers(dest="command", required=True)
+    actions.add_parser("init", help="Create the example configuration")
     for command in ("status", "pause", "resume", "doctor", "validate"):
         actions.add_parser(command)
     run = actions.add_parser("run", help="Watch one explicitly selected Conductor chat")
@@ -350,6 +351,10 @@ def test_retry(config, session, state):
 def main(argv=None):
     args = parser().parse_args(argv)
     try:
+        if args.command == "init":
+            init_config(args.config)
+            print(f"Created configuration: {args.config}")
+            return 0
         if args.command == "validate":
             load_config(args.config)
             print("Configuration is valid")

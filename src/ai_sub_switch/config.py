@@ -1,4 +1,6 @@
+import os
 import tomllib
+from importlib.resources import files
 from pathlib import Path
 
 from .domain import Account, Config, ModelChoice, ModelMapping
@@ -146,3 +148,20 @@ def load_config(path: Path) -> Config:
     if not database.is_absolute():
         database = path.parent / database
     return Config(tuple(accounts.values()), order, tuple(mappings.values()), database)
+
+
+def init_config(path: Path) -> None:
+    resource = files("ai_sub_switch").joinpath("default-config.toml")
+    if resource.is_file():
+        template = resource.read_bytes()
+    else:
+        template = (
+            Path(__file__).resolve().parents[2] / "examples/config.toml"
+        ).read_bytes()
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        raise ConfigError(f"Configuration already exists: {path}") from None
+    with os.fdopen(fd, "wb") as stream:
+        stream.write(template)

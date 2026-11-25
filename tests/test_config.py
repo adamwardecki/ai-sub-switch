@@ -32,3 +32,16 @@ def test_invalid_configuration_reports_the_problem(tmp_path, old, new, reason):
     path.write_text(EXAMPLE.read_text().replace(old, new, 1))
     with pytest.raises(ConfigError, match=reason):
         load_config(path)
+
+
+def test_init_writes_a_private_editable_config_once(tmp_path):
+    from ai_sub_switch.cli import main
+
+    path = tmp_path / "config" / "accounts.toml"
+    assert main(["--config", str(path), "init"]) == 0
+    assert load_config(path).order == ("claude-a", "claude-b", "codex")
+    assert path.stat().st_mode & 0o777 == 0o600
+
+    path.write_text("user configuration")
+    assert main(["--config", str(path), "init"]) != 0
+    assert path.read_text() == "user configuration"
