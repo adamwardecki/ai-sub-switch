@@ -1,0 +1,43 @@
+name: Package checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          version: "0.11.7"
+          python-version: "3.12"
+      - run: uv run --locked --extra macos ruff check src tests
+      - run: uv run --locked ruff format --check src tests
+      - run: uv run --locked pytest -q
+      - run: uv build --no-sources
+      - run: uvx --from twine twine check --strict dist/*
+      - name: Verify the installed wheel
+        shell: bash
+        run: |
+          test_dir="$RUNNER_TEMP/aisub-wheel"
+          uv venv --python 3.12 "$test_dir"
+          wheels=("$PWD"/dist/*.whl)
+          test "${#wheels[@]}" -eq 1
+          test -f "${wheels[0]}"
+          uv pip install --python "$test_dir/bin/python" "ai-sub-switch[macos] @ file://${wheels[0]}"
+          "$test_dir/bin/aisub" --help
+          "$test_dir/bin/aisub" --config "$test_dir/config.toml" init
+          "$test_dir/bin/aisub" --config "$test_dir/config.toml" validate
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: python-distributions
+          path: dist/
