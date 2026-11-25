@@ -52,6 +52,11 @@ def parser():
         "test-handoff", help="Run the disposable transcript test"
     )
     probe.add_argument("--session", type=UUID, required=True)
+    probe.add_argument(
+        "--same-thread",
+        action="store_true",
+        help="Retry a quota-blocked disposable Claude chat in place",
+    )
     return root
 
 
@@ -200,6 +205,36 @@ def test_handoff(config, session):
     return 3
 
 
+def test_retry(config, session, state):
+    observer = Conductor(config.conductor_db)
+    observer.disposable_workspace(session)
+    desktop = Desktop()
+    handoff = Handoff(desktop)
+    with Queue(state) as queue:
+        existing = reconcile(queue, observer, session)
+        if existing:
+            print(existing)
+            return 0 if existing.startswith("Same-thread Retry recorded") else 3
+        since = datetime.min.replace(tzinfo=UTC)
+        turn = observer.blocked(session, since, None)
+        if turn is None:
+            raise RuntimeError(
+                "The disposable chat has no current Claude quota failure"
+            )
+        handoff.prepare_retry(turn)
+        cursor = observer.retry_cursor(session)
+        current = observer.blocked(session, since, None)
+        if current is None or current.turn_id != turn.turn_id:
+            raise RuntimeError("The disposable chat changed before Retry")
+        queue.add(turn)
+        if not queue.transition(turn, "pending", "retrying", str(cursor)):
+            raise RuntimeError("This disposable turn already has a recovery attempt")
+        handoff.submit_retry(turn)
+        result = reconcile(queue, observer, session, wait=True)
+        print(result)
+        return 0 if result == "Same-thread Retry recorded by Conductor" else 3
+
+
 def main(argv=None):
     args = parser().parse_args(argv)
     try:
@@ -235,7 +270,10 @@ def main(argv=None):
             )
             return 0
         if args.command == "test-handoff":
-            return test_handoff(load_config(args.config), str(args.session))
+            config = load_config(args.config)
+            if args.same_thread:
+                return test_retry(config, str(args.session), args.state)
+            return test_handoff(config, str(args.session))
         if not args.cswap:
             raise RuntimeError("Pass --cswap with the path to the enrolled switcher")
         config = load_config(args.config)

@@ -2,9 +2,10 @@
 
 The recovery runner watches a selected local Conductor chat for a Claude
 subscription limit. It saves a pending turn while macOS is locked, then checks
-that the turn is still blocked before selecting an account and model. It
-preserves the source chat and uses Conductor's transcript attachment to prepare
-a continuation. A send with an uncertain result stays in the queue for inspection
+that the turn is still blocked before selecting an account and model. For a Claude subscription change that
+keeps the same model and effort, it switches the shared login and clicks
+Conductor's Retry button in the existing chat. A provider or model change uses
+a new chat with Conductor's transcript attachment. A send with an uncertain result stays in the queue for inspection
 so a restart cannot send it again.
 
 ## Observe a chat
@@ -34,10 +35,22 @@ Read-only recovery and a disposable Claude-to-Codex handoff were verified on
 Conductor 0.100.0. The Terminal runner created a GPT-6.2 Sol tab, attached the
 source transcript, and sent one continuation. Codex recovered the marker
 from that transcript. A real unlock-to-send cycle and a same-provider
-handoff after credential activation still need live validation. The
+Retry after credential activation still need live validation. A manual same-thread
+Retry succeeded, and the runner recognized its replay in Conductor’s records. The
 production watcher continues to reject live operation on 0.100.0.
 Accessibility permission and Conductor in the foreground are required for
 the native handoff.
+
+To verify the automated click against a disposable, currently quota-blocked
+Claude chat, activate a Claude account with capacity, then run:
+
+```sh
+uv run --locked --extra macos aisub --config examples/config.toml \
+  test-handoff --same-thread --session CHAT_UUID
+```
+
+This probe uses the current Claude login and reports whether Conductor recorded
+a replay in the original chat.
 
 `launch-agent --session CHAT_UUID` prints a per-user launchd plist. It
 defaults to observation mode. The plist reflects the current executable and

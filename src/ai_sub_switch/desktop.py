@@ -235,6 +235,23 @@ def _model_results(nodes, label, provider):
     ]
 
 
+def _quota_retry(nodes):
+    error = ""
+    candidate = None
+    limit = re.compile(
+        r"you(?:'|’)ve hit your (?:[0-9]+-hour|[0-9]+-day|weekly|daily) limit",
+        re.IGNORECASE,
+    )
+    for node, role, name in nodes:
+        if role == "AXStaticText" and name.startswith("Claude Code error:"):
+            error = name
+            candidate = None
+        if role == "AXButton" and name == "Retry":
+            candidate = node if limit.search(error) else None
+            error = ""
+    return candidate
+
+
 class Handoff:
     LABELS: ClassVar[dict[str, str]] = {
         "sonnet-5-5-1m": "Sonnet 5.5",
@@ -258,10 +275,7 @@ class Handoff:
             f"Timed out at {stage}. Matched workspace route: {bool(session)}."
         )
 
-    def prepare(self, turn, model, title, marker):
-        label = self.LABELS.get(model.model)
-        if not label:
-            raise RuntimeError("Unsupported model label for this Conductor version")
+    def _open_source(self, turn):
         UUID(turn.workspace_id)
         UUID(turn.session_id)
         self.desktop.require()
@@ -273,6 +287,32 @@ class Handoff:
             timeout=5,
             check=True,
         )
+
+    def _retry_button(self, turn):
+        pid, _, nodes = self._wait(
+            turn.workspace_id,
+            lambda sid, nodes: (
+                sid == turn.session_id and _quota_retry(nodes) is not None
+            ),
+            "finding Retry for the latest Claude quota error in the source chat",
+        )
+        return pid, _quota_retry(nodes)
+
+    def prepare_retry(self, turn):
+        self._open_source(turn)
+        self._retry_button(turn)
+
+    def submit_retry(self, turn):
+        pid, button = self._retry_button(turn)
+        if self.desktop.attribute(button, "AXEnabled") is not True:
+            raise RuntimeError("Conductor has not enabled Retry")
+        self.desktop.click_control(pid, button)
+
+    def prepare(self, turn, model, title, marker):
+        label = self.LABELS.get(model.model)
+        if not label:
+            raise RuntimeError("Unsupported model label for this Conductor version")
+        self._open_source(turn)
         pid, _, _ = self._wait(
             turn.workspace_id,
             lambda sid, _: sid == turn.session_id,

@@ -62,9 +62,15 @@ def tick(
             if selection.kind == "attention" and live:
                 queue.transition(turn, "pending", "attention", selection.reason)
             return selection.reason
+        same_thread = (
+            selection.model == turn.source and turn.source.provider == "claude"
+        )
         if not live:
+            action = (
+                "retry in the same chat" if same_thread else "continue in a new chat"
+            )
             return (
-                f"Would continue using {selection.account_id} / {selection.model.model}"
+                f"Would {action} using {selection.account_id} / {selection.model.model}"
             )
         try:
             desktop.front()
@@ -73,30 +79,51 @@ def tick(
         target = next(a for a in config.accounts if a.id == selection.account_id)
         if target.provider == "claude" and target.id != active and conductor.busy():
             return "Waiting for other Claude work to settle"
-        title = conductor.title(turn)
+        title = None if same_thread else conductor.title(turn)
         marker = uuid4().hex
         if not queue.transition(turn, "pending", "preparing", marker):
             continue
         try:
             desktop.require()
+            if same_thread:
+                handoff.prepare_retry(turn)
+                current = conductor.blocked(turn.session_id, since, turn.account_id)
+                if not current or current.turn_id != turn.turn_id:
+                    queue.transition(
+                        turn, "preparing", "cancelled", "The source turn changed"
+                    )
+                    continue
             if target.provider == "claude" and target.id != active:
                 if conductor.busy():
                     queue.transition(turn, "preparing", "pending", "Claude became busy")
                     return "Waiting for other Claude work to settle"
                 provider.activate(target, claude)
                 queue.set("active", target.id)
-            destination = handoff.prepare(turn, selection.model, title, marker)
+            if not same_thread:
+                destination = handoff.prepare(turn, selection.model, title, marker)
             latest = conductor.blocked(turn.session_id, since, turn.account_id)
             if not latest or latest.turn_id != turn.turn_id:
                 queue.transition(
                     turn, "preparing", "cancelled", "The source turn changed"
                 )
                 continue
-            if not queue.transition(
-                turn, "preparing", "submitting", f"{destination}:{marker}"
-            ):
-                return "Submission intent could not be recorded"
-            handoff.submit(turn, destination, marker, title)
+            if same_thread:
+                cursor = conductor.retry_cursor(turn.session_id)
+                current = conductor.blocked(turn.session_id, since, turn.account_id)
+                if not current or current.turn_id != turn.turn_id:
+                    queue.transition(
+                        turn, "preparing", "cancelled", "The source turn changed"
+                    )
+                    continue
+                if not queue.transition(turn, "preparing", "retrying", str(cursor)):
+                    return "Retry intent could not be recorded"
+                handoff.submit_retry(turn)
+            else:
+                if not queue.transition(
+                    turn, "preparing", "submitting", f"{destination}:{marker}"
+                ):
+                    return "Submission intent could not be recorded"
+                handoff.submit(turn, destination, marker, title)
         except (RuntimeError, OSError, ValueError) as exc:
             queue.transition(turn, "preparing", "attention", str(exc))
             return f"Recovery needs attention: {exc}"
@@ -105,22 +132,33 @@ def tick(
 
 
 def reconcile(queue, conductor, session, wait=False):
-    for row in queue.status():
-        if row["session"] != session or row["state"] != "submitting":
-            continue
-        from types import SimpleNamespace
+    from types import SimpleNamespace
 
-        destination, marker = row["detail"].split(":", 1)
+    for row in queue.status():
+        state = row["state"]
+        if row["session"] != session or state not in {"submitting", "retrying"}:
+            continue
+        turn = SimpleNamespace(session_id=session, turn_id=row["turn"])
         until = monotonic() + (6 if wait else 0)
+        if state == "retrying":
+            destination = session
+            cursor = int(row["detail"])
+        else:
+            destination, marker = row["detail"].split(":", 1)
         while True:
-            if conductor.receipt(destination, marker, session):
-                turn = SimpleNamespace(session_id=row["session"], turn_id=row["turn"])
-                queue.transition(turn, "submitting", "verified", destination)
-                return "Continuation submitted and recorded by Conductor"
+            if state == "retrying":
+                confirmed = conductor.retry_receipt(session, row["turn"], cursor)
+            else:
+                confirmed = conductor.receipt(destination, marker, session)
+            if confirmed:
+                queue.transition(turn, state, "verified", destination)
+                return (
+                    "Same-thread Retry recorded by Conductor"
+                    if state == "retrying"
+                    else "Continuation submitted and recorded by Conductor"
+                )
             if monotonic() >= until:
                 break
             sleep(0.2)
-        return (
-            "Submission outcome is unconfirmed; inspect the destination before retrying"
-        )
+        return "Submission outcome is unconfirmed; inspect the chat before retrying"
     return None

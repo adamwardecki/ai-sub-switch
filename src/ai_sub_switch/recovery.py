@@ -241,6 +241,43 @@ class Conductor:
             raise RuntimeError("Source chat title is missing or ambiguous")
         return title
 
+    def retry_cursor(self, session):
+        with self._connect() as db:
+            return db.execute(
+                "SELECT COALESCE(MAX(session_index), -1) FROM session_events WHERE session_id=?",
+                (session,),
+            ).fetchone()[0]
+
+    def retry_receipt(self, session, source_turn, cursor):
+        with self._connect() as db:
+            rows = db.execute(
+                """
+                SELECT session_index,content FROM session_events
+                WHERE session_id=? AND event_type='userMessage' AND reverted_at IS NULL
+                ORDER BY session_index
+                """,
+                (session,),
+            ).fetchall()
+        events = [(index, json.loads(payload)) for index, payload in rows]
+        original = next(
+            (
+                event.get("message")
+                for index, event in reversed(events)
+                if index <= cursor
+                and event.get("turnId") == source_turn
+                and event.get("state") == "sent"
+            ),
+            None,
+        )
+        return isinstance(original, str) and any(
+            index > cursor
+            and event.get("message") == original
+            and event.get("turnId") not in (None, source_turn)
+            and event.get("resume") == session
+            and event.get("state") == "sent"
+            for index, event in events
+        )
+
     def receipt(self, session, marker, source_session):
         with self._connect() as db:
             rows = db.execute(
