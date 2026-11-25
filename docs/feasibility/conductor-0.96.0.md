@@ -2,7 +2,7 @@
 
 Checked November 24, 2026 in a local Conductor worktree. Task 1 is still open. The live Claude account change, runner permissions, lock transitions, and successful Claude destination turn remain to be verified.
 
-On November 25, `cswap list --json` confirmed two enrolled Claude accounts with readable usage, with Claude B active. An isolated `cswap run` session restored Claude A without a browser login. Claude Code's structured authentication status matched the stored identity. This confirms the saved login works in a separate profile. The shared-login test is deferred while an unrelated Claude session has background work.
+On November 25, `cswap list --json` confirmed two enrolled Claude accounts with readable usage, with Claude B active. An isolated `cswap run` session restored Claude A without a browser login. After other Claude work settled, a shared switch to Claude A succeeded and Claude Code's structured authentication status matched the stored identity. A fresh Conductor Sonnet 5.5 chat returned the synthetic test marker. Its initialization event declared no API key source and exposed no account identity, so the evidence combines local identity with a successful new turn. Switched back to Claude B and confirmed its identity through Claude Code.
 
 | Check | Evidence | Result |
 | --- | --- | --- |
