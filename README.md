@@ -31,16 +31,15 @@ requires checking the destination chat before trying to continue manually.
 
 ## Live verification
 
-Read-only recovery and a disposable Claude-to-Codex handoff were verified on
-Conductor 0.100.0. The Terminal runner created a GPT-6.2 Sol tab, attached the
-source transcript, and sent one continuation. Codex recovered the marker
-from that transcript. The Terminal probe also retried a quota-blocked Claude
-turn in the same chat after a manual account switch. Conductor recorded one
-replay and Claude completed it. The integrated account-switch and unlock cycle
-still needs live validation. The
-production watcher continues to reject live operation on 0.100.0.
-Accessibility permission and Conductor in the foreground are required for
-the native handoff.
+Conductor 0.100.0 passed a disposable Claude-to-Codex handoff and a
+lock-to-unlock Claude-to-Claude test. In the latter, the Terminal runner
+queued the quota-blocked turn, waited for unlock, switched from Claude A to
+Claude B, and retried once in the original chat. Claude completed on the
+new account. Native handoffs require Accessibility permission and Conductor
+in the foreground.
+
+Add `--live` to the scoped `run --session CHAT_UUID` command to enable
+recovery for that chat. Without it, the runner reports its choice.
 
 To verify the automated click against a disposable, currently quota-blocked
 Claude chat, activate a Claude account with capacity, then run:

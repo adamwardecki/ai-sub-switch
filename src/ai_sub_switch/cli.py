@@ -123,11 +123,9 @@ def run(args, config, queue, desktop):
 
 def watch(args, config, queue, desktop, session):
     version = detect_version()
-    if version not in {"0.96.0", "0.100.0"} or (
-        args.live and version != "0.96.0" and not args.unlock_test
-    ):
+    if version not in {"0.96.0", "0.100.0"}:
         raise RuntimeError(
-            f"Conductor {version} has not been validated for this run mode"
+            f"Conductor {version} has not been validated for this runner"
         )
     baseline = queue.get(f"baseline:{session}")
     if baseline is None:
