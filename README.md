@@ -30,13 +30,14 @@ requires checking the destination chat before trying to continue manually.
 
 ## Live verification
 
-Read-only recovery was checked with Conductor 0.100.0. Native handoff controls
-were explored with assisted computer use on 0.96.0. The Python Accessibility
-runner and a real unlock-to-send cycle still need live validation. The
-`--live` path currently requires 0.96.0, Accessibility permission and
-Conductor in the foreground. The app will wait while the screen is locked
-or another application is in front. Keep the runner in observation mode
-until a disposable chat can be used for live verification.
+Read-only recovery and a disposable Claude-to-Codex handoff were verified on
+Conductor 0.100.0. The Terminal runner created a GPT-6.2 Sol tab, attached the
+source transcript, and sent one continuation. Codex recovered the marker
+from that transcript. A real unlock-to-send cycle and a same-provider
+handoff after credential activation still need live validation. The
+production watcher continues to reject live operation on 0.100.0.
+Accessibility permission and Conductor in the foreground are required for
+the native handoff.
 
 `launch-agent --session CHAT_UUID` prints a per-user launchd plist. It
 defaults to observation mode. The plist reflects the current executable and

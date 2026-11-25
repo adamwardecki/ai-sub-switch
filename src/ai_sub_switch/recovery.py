@@ -216,6 +216,16 @@ class Conductor:
             """)
             ]
 
+    def disposable_workspace(self, session):
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT workspace_id FROM sessions WHERE id=? AND title=? AND agent_type='claude' AND COALESCE(is_hidden,0)=0",
+                (session, f"Disposable shared login test {session[:8]}"),
+            ).fetchone()
+        if row is None:
+            raise RuntimeError("The disposable source chat could not be verified")
+        return row[0]
+
     def title(self, turn):
         with self._connect() as db:
             names = db.execute(

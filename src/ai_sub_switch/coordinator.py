@@ -96,7 +96,7 @@ def tick(
                 turn, "preparing", "submitting", f"{destination}:{marker}"
             ):
                 return "Submission intent could not be recorded"
-            handoff.submit(turn, destination, marker)
+            handoff.submit(turn, destination, marker, title)
         except (RuntimeError, OSError, ValueError) as exc:
             queue.transition(turn, "preparing", "attention", str(exc))
             return f"Recovery needs attention: {exc}"

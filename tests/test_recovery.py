@@ -163,3 +163,15 @@ def test_receipt_needs_marker_and_matching_transcript_in_one_message(tmp_path):
             ("marker session-transcript-source.md",),
         )
     assert conductor.receipt("dst", "marker", "source")
+
+
+def test_model_search_result_ignores_static_labels_and_other_providers():
+    from ai_sub_switch.desktop import _model_results
+
+    nodes = [
+        (1, "AXStaticText", "GPT-6.2 Sol Codex"),
+        (2, "AXMenuItem", " GPT-6.2 Sol\nCodex Opens in new chat "),
+        (3, "AXMenuItem", "GPT-6.2 Sol Other"),
+        (4, "AXMenuItem", "GPT-6.2 Sol Mini Codex"),
+    ]
+    assert _model_results(nodes, "GPT-6.2 Sol", "Codex") == [2]

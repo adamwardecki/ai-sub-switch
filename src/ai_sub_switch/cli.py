@@ -48,6 +48,10 @@ def parser():
     )
     service.add_argument("--session", type=UUID, required=True)
     service.add_argument("--live", action="store_true")
+    probe = actions.add_parser(
+        "test-handoff", help="Run the disposable transcript test"
+    )
+    probe.add_argument("--session", type=UUID, required=True)
     return root
 
 
@@ -158,6 +162,44 @@ def watch(args, config, queue, desktop, session):
         sleep(10 if not desktop.unlocked() else 30)
 
 
+def test_handoff(config, session):
+    from time import monotonic
+    from uuid import uuid4
+
+    from .domain import BlockedTurn, ModelChoice
+
+    observer = Conductor(config.conductor_db)
+    workspace = observer.disposable_workspace(session)
+    source = ModelChoice("claude", "sonnet-5-5-1m", "high")
+    turn = BlockedTurn(
+        workspace, session, "", "", None, source, datetime.now(UTC), None
+    )
+    title = observer.title(turn)
+    if title != f"Disposable shared login test {session[:8]}":
+        raise RuntimeError("The disposable source chat could not be verified")
+    desktop = Desktop()
+    desktop.require()
+    handoff = Handoff(desktop)
+    marker = uuid4().hex
+    destination = handoff.prepare(
+        turn, ModelChoice("codex", "gpt-6.2-sol", "high"), title, marker
+    )
+    handoff.submit(turn, destination, marker, title)
+    until = monotonic() + 12
+    while monotonic() < until:
+        if observer.receipt(destination, marker, session):
+            print(
+                f"Conductor recorded the test transcript and continuation in {destination}"
+            )
+            return 0
+        sleep(0.25)
+    print(
+        "Test submission could not be confirmed. Inspect the new chat before retrying.",
+        file=sys.stderr,
+    )
+    return 3
+
+
 def main(argv=None):
     args = parser().parse_args(argv)
     try:
@@ -192,6 +234,8 @@ def main(argv=None):
                 f"Accessibility trusted: {bool(desktop.ax.AXIsProcessTrusted())}; cswap found: {bool(args.cswap)}"
             )
             return 0
+        if args.command == "test-handoff":
+            return test_handoff(load_config(args.config), str(args.session))
         if not args.cswap:
             raise RuntimeError("Pass --cswap with the path to the enrolled switcher")
         config = load_config(args.config)
