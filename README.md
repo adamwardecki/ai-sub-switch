@@ -53,6 +53,21 @@ uv run --locked --extra macos aisub --config examples/config.toml \
 This probe uses the current Claude login and reports whether Conductor recorded
 a replay in the original chat.
 
+For the full lock/unlock test, start with a currently quota-blocked disposable
+Claude chat on the exhausted account. Wait for other Claude work to settle:
+
+```sh
+uv run --locked --extra macos aisub --config examples/config.toml \
+  --state .context/unlock-test.sqlite --cswap /absolute/path/to/cswap \
+  run --session CHAT_UUID --include-current --live --unlock-test
+```
+
+Once the runner reports that the turn is queued, bring Conductor forward,
+lock macOS for at least five seconds, then unlock. It waits for a confirmed lock
+and unlock, switches to another Claude account, and retries at most once.
+Use a fresh state path for a new disposable test. This mode has a three-minute
+time limit and only accepts the designated disposable chat.
+
 `launch-agent --session CHAT_UUID` prints a per-user launchd plist. It
 defaults to observation mode. The plist reflects the current executable and
 paths, so generate it from a stable installation before loading it.

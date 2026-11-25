@@ -13,7 +13,7 @@ from time import sleep
 from uuid import UUID
 
 from .config import ConfigError, load_config
-from .coordinator import reconcile, tick
+from .coordinator import UnlockCycle, reconcile, tick
 from .desktop import Desktop, Handoff
 from .providers import Codex, Cswap
 from .recovery import Conductor, Queue
@@ -43,6 +43,11 @@ def parser():
         help="Include last blocked turn when enrolling this session",
     )
     run.add_argument("--once", action="store_true")
+    run.add_argument(
+        "--unlock-test",
+        action="store_true",
+        help="Wait for a lock and unlock before retrying one disposable Claude chat",
+    )
     service = actions.add_parser(
         "launch-agent", help="Print a per-user LaunchAgent property list"
     )
@@ -118,7 +123,9 @@ def run(args, config, queue, desktop):
 
 def watch(args, config, queue, desktop, session):
     version = detect_version()
-    if version not in {"0.96.0", "0.100.0"} or (args.live and version != "0.96.0"):
+    if version not in {"0.96.0", "0.100.0"} or (
+        args.live and version != "0.96.0" and not args.unlock_test
+    ):
         raise RuntimeError(
             f"Conductor {version} has not been validated for this run mode"
         )
@@ -136,6 +143,10 @@ def watch(args, config, queue, desktop, session):
     provider = Cswap(args.cswap)
     codex = Codex(args.codex)
     handoff = Handoff(desktop)
+    if args.unlock_test:
+        return watch_unlock_test(
+            args, config, queue, desktop, session, since, observer, provider, handoff
+        )
     last = None
     while True:
         try:
@@ -165,6 +176,109 @@ def watch(args, config, queue, desktop, session):
         if args.once:
             return 0
         sleep(10 if not desktop.unlocked() else 30)
+
+
+def watch_unlock_test(
+    args, config, queue, desktop, session, since, observer, provider, handoff
+):
+    from dataclasses import replace
+    from time import monotonic
+
+    if not args.live or not args.include_current or args.once:
+        raise RuntimeError("--unlock-test requires --live and --include-current")
+    observer.disposable_workspace(session)
+    desktop.require()
+    claude = tuple(a for a in config.accounts if a.provider == "claude")
+    scoped = replace(
+        config,
+        accounts=claude,
+        order=tuple(key for key in config.order if key in {a.id for a in claude}),
+        mappings=(),
+    )
+    active = provider.active(claude)
+    turn = observer.blocked(session, since, active)
+    if not turn or not active:
+        raise RuntimeError(
+            "The disposable chat must have a current Claude quota failure"
+        )
+    if queue.get("paused") == "1":
+        raise RuntimeError("Recovery is paused")
+    if any(
+        row["session"] == session
+        and row["turn"] == turn.turn_id
+        and row["state"] != "pending"
+        for row in queue.status()
+    ):
+        raise RuntimeError("This disposable turn already has a recovery attempt")
+    queue.set("active", active)
+    queue.add(turn)
+    print(
+        "Blocked disposable turn queued. Bring Conductor forward, lock the Mac for at least 5 seconds, then unlock.",
+        flush=True,
+    )
+    gate = UnlockCycle()
+    end = monotonic() + 180
+    last = None
+    while monotonic() < end:
+        state = desktop.session_state()
+        if not gate.observe(state):
+            report = "Mac locked. Recovery is queued." if state == "locked" else None
+        else:
+            try:
+                desktop.front()
+            except RuntimeError:
+                if last != "Unlocked. Bring Conductor forward to continue.":
+                    print("Unlocked. Bring Conductor forward to continue.", flush=True)
+                    last = "Unlocked. Bring Conductor forward to continue."
+                sleep(1)
+                continue
+            if observer.busy():
+                if last != "Waiting for other Claude work to settle":
+                    print("Waiting for other Claude work to settle", flush=True)
+                    last = "Waiting for other Claude work to settle"
+                sleep(2)
+                continue
+            if provider.active(claude) != active:
+                raise RuntimeError("Claude login changed during the test")
+            selection = provider.usage(claude)
+            original = selection.get(active)
+            if original is None or original.state != "exhausted":
+                raise RuntimeError(
+                    "The active Claude account is no longer confirmed exhausted"
+                )
+            from .rules import select_target
+
+            target = select_target(turn, scoped, selection, datetime.now(UTC))
+            if target.kind != "handoff" or target.account_id == active:
+                raise RuntimeError(
+                    "The test needs a different Claude account with available quota"
+                )
+            if queue.get("paused") == "1":
+                raise RuntimeError("Recovery was paused")
+            report = tick(
+                queue,
+                scoped,
+                session,
+                since,
+                observer,
+                provider,
+                desktop,
+                handoff,
+                True,
+            )
+            if any(
+                row["session"] == session
+                and row["turn"] == turn.turn_id
+                and row["state"] in {"verified", "retrying", "attention", "cancelled"}
+                for row in queue.status()
+            ):
+                print(report, flush=True)
+                return 0 if report == "Same-thread Retry recorded by Conductor" else 3
+        if report and report != last:
+            print(report, flush=True)
+            last = report
+        sleep(1)
+    raise RuntimeError("Unlock test timed out; check the queue before restarting")
 
 
 def test_handoff(config, session):

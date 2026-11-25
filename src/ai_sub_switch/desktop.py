@@ -20,13 +20,16 @@ class Desktop:
         self.ax = ApplicationServices
         self.cg = Quartz
 
-    def unlocked(self):
+    def session_state(self):
         state = self.cg.CGSessionCopyCurrentDictionary() or {}
-        return bool(
-            state.get("kCGSSessionOnConsoleKey")
-            and state.get("kCGSessionLoginDoneKey")
-            and not state.get("CGSSessionScreenIsLocked")
-        )
+        if not state.get("kCGSSessionOnConsoleKey") or not state.get(
+            "kCGSessionLoginDoneKey"
+        ):
+            return "unknown"
+        return "locked" if state.get("CGSSessionScreenIsLocked") else "unlocked"
+
+    def unlocked(self):
+        return self.session_state() == "unlocked"
 
     def require(self):
         if not self.unlocked():

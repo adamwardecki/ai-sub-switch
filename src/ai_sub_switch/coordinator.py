@@ -6,6 +6,19 @@ from .desktop import DesktopUnavailable
 from .rules import select_target
 
 
+class UnlockCycle:
+    def __init__(self):
+        self.saw_lock = False
+        self.complete = False
+
+    def observe(self, state):
+        if state == "locked":
+            self.saw_lock = True
+        elif state == "unlocked" and self.saw_lock:
+            self.complete = True
+        return self.complete and state == "unlocked"
+
+
 def tick(
     queue,
     config,

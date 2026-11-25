@@ -241,3 +241,21 @@ def test_select_latest_retry_only_if_its_error_is_a_subscription_failure():
         )
         is None
     )
+
+
+def test_unlock_test_ignores_startup_and_ambiguous_desktop_state():
+    from ai_sub_switch.coordinator import UnlockCycle
+
+    gate = UnlockCycle()
+    assert [
+        gate.observe(state)
+        for state in (
+            "unlocked",
+            "unknown",
+            "unlocked",
+            "locked",
+            "unknown",
+            "locked",
+            "unlocked",
+        )
+    ] == [False, False, False, False, False, False, True]
