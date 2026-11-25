@@ -1,0 +1,35 @@
+schema_version = 1
+order = ["claude-a", "claude-b", "codex"]
+
+[[accounts]]
+id = "claude-a"
+label = "Claude A"
+provider = "claude"
+backend_ref = "claude-a"
+
+[[accounts]]
+id = "claude-b"
+label = "Claude B"
+provider = "claude"
+backend_ref = "claude-b"
+
+[[accounts]]
+id = "codex"
+label = "OpenAI"
+provider = "codex"
+backend_ref = "current"
+
+# These suggestions use models observed in Conductor 0.96.0.
+[[mappings]]
+source_provider = "claude"
+source_model = "sonnet-5-5-1m"
+destination_provider = "codex"
+target_model = "gpt-6.2-sol"
+effort = "high"
+
+[[mappings]]
+source_provider = "codex"
+source_model = "gpt-6.2-sol"
+destination_provider = "claude"
+target_model = "sonnet-5-5-1m"
+effort = "high"

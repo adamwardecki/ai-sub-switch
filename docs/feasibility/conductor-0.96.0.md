@@ -2,6 +2,8 @@
 
 Checked November 24, 2026 in a local Conductor worktree. Task 1 is still open. The live Claude account change, runner permissions, lock transitions, and successful Claude destination turn remain to be verified.
 
+On November 25, `cswap list --json` confirmed two enrolled Claude accounts with readable usage, with Claude B active. An isolated `cswap run` session restored Claude A without a browser login. Claude Code's structured authentication status matched the stored identity. This confirms the saved login works in a separate profile. The shared-login test is deferred while an unrelated Claude session has background work.
+
 | Check | Evidence | Result |
 | --- | --- | --- |
 | Native Claude → Codex transcript handoff | A disposable Sonnet 5.5 turn hit a real five-hour limit. A GPT-6.2 Sol tab in the same workspace received Conductor's transcript attachment. Codex read the Markdown file and returned a synthetic marker that appeared only in the source chat. | Passed with an explicit instruction to read the attachment. |
