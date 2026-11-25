@@ -34,9 +34,10 @@ requires checking the destination chat before trying to continue manually.
 Read-only recovery and a disposable Claude-to-Codex handoff were verified on
 Conductor 0.100.0. The Terminal runner created a GPT-6.2 Sol tab, attached the
 source transcript, and sent one continuation. Codex recovered the marker
-from that transcript. A real unlock-to-send cycle and a same-provider
-Retry after credential activation still need live validation. A manual same-thread
-Retry succeeded, and the runner recognized its replay in Conductor’s records. The
+from that transcript. The Terminal probe also retried a quota-blocked Claude
+turn in the same chat after a manual account switch. Conductor recorded one
+replay and Claude completed it. The integrated account-switch and unlock cycle
+still needs live validation. The
 production watcher continues to reject live operation on 0.100.0.
 Accessibility permission and Conductor in the foreground are required for
 the native handoff.
